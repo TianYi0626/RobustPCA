@@ -279,13 +279,13 @@ def plot_complexity_analysis(results_df, save_path='/home3/tianyi/RobustPCA/resu
         model_name, params, curve_func = best_admm_model
         y_smooth = curve_func(x_smooth)
         ax1.plot(x_smooth, y_smooth, 'b--', alpha=0.7, linewidth=2,
-                label=f'ADMM trend ({model_name}, R²={best_admm_r2:.3f})')
+                label=f'ADM trend ({model_name}, R²={best_admm_r2:.3f})')
     
     if best_iaml_model:
         model_name, params, curve_func = best_iaml_model
         y_smooth = curve_func(x_smooth)
         ax1.plot(x_smooth, y_smooth, 'r--', alpha=0.7, linewidth=2,
-                label=f'IAML trend ({model_name}, R²={best_iaml_r2:.3f})')
+                label=f'IALM trend ({model_name}, R²={best_iaml_r2:.3f})')
     
     ax1.set_xlabel('Matrix Size (n×n)', fontsize=16)
     ax1.set_ylabel('Execution Time (seconds)', fontsize=16)
@@ -298,11 +298,11 @@ def plot_complexity_analysis(results_df, save_path='/home3/tianyi/RobustPCA/resu
     # Plot 2: Speedup factor
     ax2 = axes[0, 1]
     speedup = results_df['speedup_factor'].values
-    ax2.plot(sizes, speedup, 'go-', linewidth=2, markersize=8, label='IAML Speedup')
+    ax2.plot(sizes, speedup, 'go-', linewidth=2, markersize=8, label='IALM Speedup')
     ax2.axhline(y=1, color='k', linestyle='--', alpha=0.5, label='No speedup')
     ax2.set_xlabel('Matrix Size (n×n)', fontsize=16)
-    ax2.set_ylabel('Speedup Factor (ADMM time / IAML time)', fontsize=16)
-    ax2.set_title('IAML Speedup over ADMM', fontsize=18, fontweight='bold')
+    ax2.set_ylabel('Speedup Factor (ADM time / IALM time)', fontsize=16)
+    ax2.set_title('IALM Speedup over ADM', fontsize=18, fontweight='bold')
     ax2.legend(fontsize=16)
     ax2.grid(True, alpha=0.3)
     ax2.set_xscale('log')
@@ -312,8 +312,8 @@ def plot_complexity_analysis(results_df, save_path='/home3/tianyi/RobustPCA/resu
     admm_iters = results_df['admm_iter_mean'].values
     iaml_iters = results_df['iaml_iter_mean'].values
     
-    ax3.plot(sizes, admm_iters, 'bo-', linewidth=2, markersize=8, label='ADMM')
-    ax3.plot(sizes, iaml_iters, 'ro-', linewidth=2, markersize=8, label='IAML')
+    ax3.plot(sizes, admm_iters, 'bo-', linewidth=2, markersize=8, label='ADM')
+    ax3.plot(sizes, iaml_iters, 'ro-', linewidth=2, markersize=8, label='IALM')
     ax3.set_xlabel('Matrix Size (n×n)', fontsize=16)
     ax3.set_ylabel('Iterations to Convergence', fontsize=16)
     ax3.set_title('Convergence Iterations Comparison', fontsize=18, fontweight='bold')
@@ -326,8 +326,8 @@ def plot_complexity_analysis(results_df, save_path='/home3/tianyi/RobustPCA/resu
     admm_time_per_iter = admm_times / admm_iters
     iaml_time_per_iter = iaml_times / iaml_iters
     
-    ax4.plot(sizes, admm_time_per_iter, 'bo-', linewidth=2, markersize=8, label='ADMM')
-    ax4.plot(sizes, iaml_time_per_iter, 'ro-', linewidth=2, markersize=8, label='IAML')
+    ax4.plot(sizes, admm_time_per_iter, 'bo-', linewidth=2, markersize=8, label='ADM')
+    ax4.plot(sizes, iaml_time_per_iter, 'ro-', linewidth=2, markersize=8, label='IALM')
     ax4.set_xlabel('Matrix Size (n×n)', fontsize=16)
     ax4.set_ylabel('Time per Iteration (seconds)', fontsize=16)
     ax4.set_title('Computational Cost per Iteration', fontsize=18, fontweight='bold')
@@ -344,8 +344,8 @@ def plot_complexity_analysis(results_df, save_path='/home3/tianyi/RobustPCA/resu
     fig2, ax = plt.subplots(1, 1, figsize=(12, 8))
     
     # Plot with different scales to show theoretical complexity
-    ax.loglog(sizes, admm_times, 'bo-', linewidth=3, markersize=10, label='ADMM (Observed)')
-    ax.loglog(sizes, iaml_times, 'ro-', linewidth=3, markersize=10, label='IAML (Observed)')
+    ax.loglog(sizes, admm_times, 'bo-', linewidth=3, markersize=10, label='ADM (Observed)')
+    ax.loglog(sizes, iaml_times, 'ro-', linewidth=3, markersize=10, label='IALM (Observed)')
     
     # Add theoretical complexity lines for reference
     n_min, n_max = sizes.min(), sizes.max()
@@ -363,13 +363,13 @@ def plot_complexity_analysis(results_df, save_path='/home3/tianyi/RobustPCA/resu
     # Add trend line equations as text
     if best_admm_model:
         model_name, params, _ = best_admm_model
-        ax.text(0.05, 0.95, f'ADMM best fit: {model_name} (R²={best_admm_r2:.3f})', 
+        ax.text(0.05, 0.95, f'ADM best fit: {model_name} (R²={best_admm_r2:.3f})', 
                transform=ax.transAxes, fontsize=12, verticalalignment='top',
                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
     
     if best_iaml_model:
         model_name, params, _ = best_iaml_model
-        ax.text(0.05, 0.85, f'IAML best fit: {model_name} (R²={best_iaml_r2:.3f})', 
+        ax.text(0.05, 0.85, f'IALM best fit: {model_name} (R²={best_iaml_r2:.3f})', 
                transform=ax.transAxes, fontsize=12, verticalalignment='top',
                bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.8))
     
@@ -464,13 +464,14 @@ def main():
     print(f"  Trials per size: {num_trials}")
     
     # Run the scaling experiment
-    results_df = run_scaling_experiment(
-        size_range=size_range,
-        rank_ratio=rank_ratio,
-        sparsity_level=sparsity_level,
-        noise_level=noise_level,
-        num_trials=num_trials
-    )
+    # results_df = run_scaling_experiment(
+    #     size_range=size_range,
+    #     rank_ratio=rank_ratio,
+    #     sparsity_level=sparsity_level,
+    #     noise_level=noise_level,
+    #     num_trials=num_trials
+    # )
+    results_df = pd.read_csv('/home3/tianyi/RobustPCA/result/time_complexity_results.csv')
     
     # Print summary
     print_complexity_summary(results_df)

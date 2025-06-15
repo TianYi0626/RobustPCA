@@ -30,57 +30,136 @@ def soft_thresholding(X, tau):
     """
     return np.sign(X) * np.maximum(np.abs(X) - tau, 0)
 
-class ADMM_RPCA:
+def projection_complement_omega(X, Omega):
     """
-    Alternating Direction Method of Multipliers for Robust PCA
+    Projection operator P_{Omega^c}[X] onto the complement of observed entries
     
-    Solves: min ||L||_* + lambda ||S||_1 subject to D = L + S
+    Args:
+        X: Input matrix
+        Omega: Set of observed entry indices (boolean mask)
+    
+    Returns:
+        Projected matrix (zeros at observed entries, keeps unobserved entries)
+    """
+    result = X.copy()
+    if isinstance(Omega, np.ndarray) and Omega.dtype == bool:
+        # Omega is a boolean mask - zero out observed entries (keep unobserved)
+        result[Omega] = 0
+    else:
+        # Convert to boolean mask if needed
+        mask = np.zeros_like(X, dtype=bool)
+        if len(Omega) > 0:
+            mask[Omega] = True
+            result[mask] = 0
+    return result
+
+def projection_omega(X, Omega):
+    """
+    Projection operator P_Omega[X] onto observed entries
+    
+    Args:
+        X: Input matrix
+        Omega: Set of observed entry indices (boolean mask)
+    
+    Returns:
+        Projected matrix (keeps observed entries, zeros unobserved entries)
+    """
+    result = np.zeros_like(X)
+    if isinstance(Omega, np.ndarray) and Omega.dtype == bool:
+        # Omega is a boolean mask - keep observed entries
+        result[Omega] = X[Omega]
+    else:
+        # Convert to boolean mask if needed
+        if len(Omega) > 0:
+            result[Omega] = X[Omega]
+    return result
+
+def projection_box_constraint(X, gamma_over_mu):
+    """
+    Projection operator P_{Ω^{γ/μ}_∞}[X] for box constraint
+    Projects onto the set {X | -γ/μ ≤ X_ij ≤ γ/μ}
+    
+    Args:
+        X: Input matrix
+        gamma_over_mu: Box constraint parameter γ/μ
+    
+    Returns:
+        Projected matrix
+    """
+    return np.clip(X, -gamma_over_mu, gamma_over_mu)
+
+class ADMM_SLRMD:
+    """
+    Alternating Direction Method of Multipliers for Sparse and Low-Rank Matrix Decomposition (SLRMD)
+    
+    Solves: 
+    - Standard RPCA: min ||L||_* + lambda ||S||_1 subject to D = L + S
+    - Matrix Completion: min ||L||_* + lambda ||S||_1 subject to P_Omega[C] = P_Omega[L + S]
     """
     
-    def __init__(self, lambda_param=None, rho=1.0, max_iter=1000, 
+    def __init__(self, lambda_param=None, mu=1.0, gamma=None, max_iter=1000, 
                  tol_primal=1e-6, tol_dual=1e-7, verbose=False):
         """
-        Initialize ADMM-RPCA solver
+        Initialize ADMM-SLRMD solver
         
         Args:
             lambda_param: Regularization parameter (if None, uses 1/sqrt(max(m,n)))
-            rho: Penalty parameter
+            mu: Penalty parameter (renamed from beta to match algorithm description)
+            gamma: Box constraint parameter for S-subproblem (if None, uses lambda)
             max_iter: Maximum number of iterations
             tol_primal: Tolerance for primal variables
             tol_dual: Tolerance for constraint violation
             verbose: Print convergence information
         """
         self.lambda_param = lambda_param
-        self.rho = rho
+        self.mu = mu
+        self.gamma = gamma
         self.max_iter = max_iter
         self.tol_primal = tol_primal
         self.tol_dual = tol_dual
         self.verbose = verbose
         
-    def fit(self, D):
+    def fit(self, D, Omega=None):
         """
-        Decompose matrix D into low-rank L and sparse S components
+        Decompose matrix D into sparse S and low-rank L components
         
         Args:
-            D: Input data matrix (m x n)
+            D: Input data matrix (m x n) with possible missing entries
+            Omega: Set of observed entry indices (boolean mask). If None, all entries are observed (standard RPCA).
             
         Returns:
-            L: Low-rank component
             S: Sparse component
+            L: Low-rank component
             info: Dictionary with convergence information
         """
         m, n = D.shape
         
-        # Set default lambda parameter
+        # Set default parameters
         if self.lambda_param is None:
             self.lambda_param = 1.0 / np.sqrt(max(m, n))
+        if self.gamma is None:
+            self.gamma = self.lambda_param
             
-        # Initialize variables
-        L = np.zeros_like(D)
+        # Determine if this is standard RPCA or matrix completion
+        if Omega is None:
+            # Standard RPCA case - all entries observed
+            is_standard_rpca = True
+            Omega = np.ones_like(D, dtype=bool)
+        else:
+            # Matrix completion case - some entries missing
+            is_standard_rpca = False
+            if not isinstance(Omega, np.ndarray):
+                Omega = np.array(Omega)
+            if Omega.dtype != bool:
+                # Convert indices to boolean mask
+                mask = np.zeros_like(D, dtype=bool)
+                mask[Omega] = True
+                Omega = mask
+                
+        # Initialize variables - only S, L, Z (no Y1, Y2)
         S = np.zeros_like(D)
+        L = np.zeros_like(D)
         Z = np.zeros_like(D)
-        Y1 = np.zeros_like(D)  # Dual variable for L + S - Z = 0
-        Y2 = np.zeros_like(D)  # Dual variable for D - Z = 0
         
         # Store convergence history
         history = {
@@ -93,34 +172,55 @@ class ADMM_RPCA:
         start_time = time.time()
         
         for k in range(self.max_iter):
-            L_old = L.copy()
             S_old = S.copy()
+            L_old = L.copy()
             Z_old = Z.copy()
             
-            # Update L (L-subproblem)
-            # L^{k+1} = D_{1/rho}(Z^k - S^k - Y1^k/rho)
-            L = singular_value_thresholding(Z - S - Y1/self.rho, 1.0/self.rho)
+            if is_standard_rpca:
+                # Standard RPCA using the algorithm from the description
+                
+                # Step 1: Generate S^{k+1}
+                # S^{k+1} = (1/μ)Z^k - L^k + D - P_{Ω^{γ/μ}_∞}[(1/μ)Z^k - L^k + D]
+                temp = (1.0/self.mu) * Z - L + D
+                S = temp - projection_box_constraint(temp, self.gamma/self.mu)
+                
+                # Step 2: Generate L^{k+1}
+                # L^{k+1} = SVT_{1/μ}[D - S^{k+1} + (1/μ)Z^k]
+                svd_input = D - S + (1.0/self.mu) * Z
+                L = singular_value_thresholding(svd_input, 1.0/self.mu)
+                
+                # Step 3: Update the multiplier
+                # Z^{k+1} = Z^k - μ(S^{k+1} + L^{k+1} - D)
+                constraint_violation = S + L - D
+                Z = Z - self.mu * constraint_violation
+                
+                primal_residual = np.linalg.norm(constraint_violation, 'fro')
+                
+            else:
+                # Matrix completion case: use the SLRMD formulation from the image
+                # This is for problems with missing entries
+                
+                # Step 1: Generate S^{k+1} (A^{k+1} in the image, where A=S)
+                # S^{k+1} = (1/β)Z^k - L^k + P_Ω[C] - P_{Ω^c}[(1/β)Z^k - L^k + P_Ω[C]]
+                temp = (1.0/self.mu) * Z - L + projection_omega(D, Omega)
+                S = temp - projection_complement_omega(temp, Omega)
+                
+                # Step 2: Generate L^{k+1} (B^{k+1} in the image, where B=L)
+                # L^{k+1} = SVT_{1/β}[C - S^{k+1} + (1/β)Z^k]
+                svd_input = D - S + (1.0/self.mu) * Z
+                L = singular_value_thresholding(svd_input, 1.0/self.mu)
+                
+                # Step 3: Update the multiplier
+                # Z^{k+1} = Z^k - β(S^{k+1} + L^{k+1} - C)
+                constraint_violation = S + L - D
+                Z = Z - self.mu * constraint_violation
+                
+                primal_residual = np.linalg.norm(constraint_violation, 'fro')
             
-            # Update S (S-subproblem)
-            # S^{k+1} = S_{lambda/rho}(Z^k - L^{k+1} - Y1^k/rho)
-            S = soft_thresholding(Z - L - Y1/self.rho, self.lambda_param/self.rho)
-            
-            # Update Z (Z-subproblem)
-            # Z^{k+1} = (L^{k+1} + S^{k+1} + Y1^k/rho + D + Y2^k/rho) / 2
-            Z = 0.5 * (L + S + Y1/self.rho + D + Y2/self.rho)
-            
-            # Update dual variables
-            Y1 = Y1 + self.rho * (L + S - Z)
-            Y2 = Y2 + self.rho * (D - Z)
-            
-            # Compute residuals
-            primal_residual1 = np.linalg.norm(L + S - Z, 'fro')
-            primal_residual2 = np.linalg.norm(D - Z, 'fro')
-            primal_residual = max(primal_residual1, primal_residual2)
-            
+            # Compute dual residual (change in variables)
             dual_residual = max(
-                np.linalg.norm(L - L_old, 'fro'),
                 np.linalg.norm(S - S_old, 'fro'),
+                np.linalg.norm(L - L_old, 'fro'),
                 np.linalg.norm(Z - Z_old, 'fro')
             )
             
@@ -140,8 +240,8 @@ class ADMM_RPCA:
                       f"Dual={dual_residual:.2e}, Obj={objective:.4f}")
             
             # Check convergence
-            if (dual_residual < self.tol_primal and 
-                primal_residual < self.tol_dual):
+            if (dual_residual < self.tol_dual and 
+                primal_residual < self.tol_primal):
                 if self.verbose:
                     print(f"Converged at iteration {k}")
                 break
@@ -158,24 +258,48 @@ class ADMM_RPCA:
             'history': history
         }
         
-        return L, S, info
+        return S, L, info
+
+# Keep backward compatibility
+class ADMM_RPCA(ADMM_SLRMD):
+    """Backward compatibility alias for ADMM_SLRMD"""
+    pass
+
+def admm_slrmd(C, lambda_param=None, Omega=None, **kwargs):
+    """
+    Convenience function for ADMM-SLRMD
+    
+    Args:
+        C: Input data matrix
+        lambda_param: Regularization parameter
+        Omega: Set of observed entry indices
+        **kwargs: Additional parameters for ADMM_SLRMD
+        
+    Returns:
+        S: Sparse component
+        L: Low-rank component
+        info: Convergence information
+    """
+    solver = ADMM_SLRMD(lambda_param=lambda_param, **kwargs)
+    return solver.fit(C, Omega)
 
 def admm_rpca(D, lambda_param=None, **kwargs):
     """
-    Convenience function for ADMM-RPCA
+    Convenience function for ADMM-RPCA (backward compatibility)
     
     Args:
         D: Input data matrix
         lambda_param: Regularization parameter
-        **kwargs: Additional parameters for ADMM_RPCA
+        **kwargs: Additional parameters for ADMM_SLRMD
         
     Returns:
         L: Low-rank component
         S: Sparse component
         info: Convergence information
     """
-    solver = ADMM_RPCA(lambda_param=lambda_param, **kwargs)
-    return solver.fit(D)
+    solver = ADMM_SLRMD(lambda_param=lambda_param, **kwargs)
+    S, L, info = solver.fit(D)
+    return L, S, info  # Return in original order for backward compatibility
 
 if __name__ == "__main__":
     # Example usage
@@ -194,16 +318,47 @@ if __name__ == "__main__":
     
     D = L_true + S_true
     
-    print("Running ADMM-RPCA...")
-    L_recovered, S_recovered, info = admm_rpca(D, verbose=True)
+    print("Testing Standard RPCA (no missing entries)...")
+    S_recovered, L_recovered, info = admm_slrmd(D, verbose=True)
     
     # Compute recovery errors
     L_error = np.linalg.norm(L_recovered - L_true, 'fro') / np.linalg.norm(L_true, 'fro')
     S_error = np.linalg.norm(S_recovered - S_true, 'fro') / np.linalg.norm(S_true, 'fro')
     
-    print(f"\nResults:")
+    print(f"\nStandard RPCA Results:")
     print(f"L relative error: {L_error:.4f}")
     print(f"S relative error: {S_error:.4f}")
     print(f"Iterations: {info['iterations']}")
     print(f"Total time: {info['total_time']:.2f}s")
-    print(f"Converged: {info['converged']}") 
+    print(f"Converged: {info['converged']}")
+    
+    # Test with missing entries
+    print("\n" + "="*50)
+    print("Testing Matrix Completion (with missing entries)...")
+    missing_ratio = 0.3
+    total_entries = m * n
+    missing_indices = np.random.choice(total_entries, size=int(missing_ratio * total_entries), replace=False)
+    Omega = np.ones((m, n), dtype=bool)
+    Omega.flat[missing_indices] = False
+    
+    # Create observed data
+    D_observed = D.copy()
+    D_observed[~Omega] = 0  # Zero out missing entries
+    
+    S_recovered_mc, L_recovered_mc, info_mc = admm_slrmd(D_observed, Omega=Omega, verbose=True)
+    
+    # Compute recovery errors
+    L_error_mc = np.linalg.norm(L_recovered_mc - L_true, 'fro') / np.linalg.norm(L_true, 'fro')
+    S_error_mc = np.linalg.norm(S_recovered_mc - S_true, 'fro') / np.linalg.norm(S_true, 'fro')
+    
+    print(f"\nMatrix Completion Results:")
+    print(f"L relative error: {L_error_mc:.4f}")
+    print(f"S relative error: {S_error_mc:.4f}")
+    print(f"Iterations: {info_mc['iterations']}")
+    print(f"Total time: {info_mc['total_time']:.2f}s")
+    print(f"Converged: {info_mc['converged']}")
+    
+    # Test backward compatibility
+    print("\nTesting backward compatibility...")
+    L_recovered_old, S_recovered_old, info_old = admm_rpca(D, verbose=False)
+    print(f"Backward compatibility test passed: {np.allclose(L_recovered, L_recovered_old)}") 

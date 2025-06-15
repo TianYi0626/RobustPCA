@@ -118,8 +118,8 @@ def plot_convergence(results):
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     
     # Objective function
-    axes[0, 0].semilogy(results['ADMM']['info']['history']['objective'], 'b-', label='ADMM', linewidth=2)
-    axes[0, 0].semilogy(results['IAML']['info']['history']['objective'], 'r--', label='IAML', linewidth=2)
+    axes[0, 0].semilogy(results['ADM']['info']['history']['objective'], 'b-', label='ADM', linewidth=2)
+    axes[0, 0].semilogy(results['IALM']['info']['history']['objective'], 'r--', label='IALM', linewidth=2)
     axes[0, 0].set_xlabel('Iteration', fontsize=16)
     axes[0, 0].set_ylabel('Objective Value', fontsize=16)
     axes[0, 0].set_title('Objective Function Convergence', fontsize=18)
@@ -127,8 +127,8 @@ def plot_convergence(results):
     axes[0, 0].grid(True)
     
     # Primal residual
-    axes[0, 1].semilogy(results['ADMM']['info']['history']['primal_residual'], 'b-', label='ADMM', linewidth=2)
-    axes[0, 1].semilogy(results['IAML']['info']['history']['primal_residual'], 'r--', label='IAML', linewidth=2)
+    axes[0, 1].semilogy(results['ADM']['info']['history']['primal_residual'], 'b-', label='ADM', linewidth=2)
+    axes[0, 1].semilogy(results['IALM']['info']['history']['primal_residual'], 'r--', label='IALM', linewidth=2)
     axes[0, 1].set_xlabel('Iteration', fontsize=16)
     axes[0, 1].set_ylabel('Primal Residual', fontsize=16)
     axes[0, 1].set_title('Primal Residual Convergence', fontsize=18)
@@ -136,8 +136,8 @@ def plot_convergence(results):
     axes[0, 1].grid(True)
     
     # Dual residual
-    axes[1, 0].semilogy(results['ADMM']['info']['history']['dual_residual'], 'b-', label='ADMM', linewidth=2)
-    axes[1, 0].semilogy(results['IAML']['info']['history']['dual_residual'], 'r--', label='IAML', linewidth=2)
+    axes[1, 0].semilogy(results['ADM']['info']['history']['dual_residual'], 'b-', label='ADM', linewidth=2)
+    axes[1, 0].semilogy(results['IALM']['info']['history']['dual_residual'], 'r--', label='IALM', linewidth=2)
     axes[1, 0].set_xlabel('Iteration', fontsize=16)
     axes[1, 0].set_ylabel('Dual Residual', fontsize=16)
     axes[1, 0].set_title('Dual Residual Convergence', fontsize=18)
@@ -145,10 +145,10 @@ def plot_convergence(results):
     axes[1, 0].grid(True)
     
     # Time vs objective
-    axes[1, 1].semilogy(results['ADMM']['info']['history']['time'], 
-                       results['ADMM']['info']['history']['objective'], 'b-', label='ADMM', linewidth=2)
-    axes[1, 1].semilogy(results['IAML']['info']['history']['time'], 
-                       results['IAML']['info']['history']['objective'], 'r--', label='IAML', linewidth=2)
+    axes[1, 1].semilogy(results['ADM']['info']['history']['time'], 
+                       results['ADM']['info']['history']['objective'], 'b-', label='ADM', linewidth=2)
+    axes[1, 1].semilogy(results['IALM']['info']['history']['time'], 
+                       results['IALM']['info']['history']['objective'], 'r--', label='IALM', linewidth=2)
     axes[1, 1].set_xlabel('Time (seconds)', fontsize=16)
     axes[1, 1].set_ylabel('Objective Value', fontsize=16)
     axes[1, 1].set_title('Objective vs Time', fontsize=18)
@@ -183,46 +183,46 @@ def plot_decomposition(D, L_true, S_true, results):
     plt.colorbar(im3, ax=axes[0, 2])
     
     # ADMM results
-    im4 = axes[1, 1].imshow(results['ADMM']['L'], cmap='viridis')
-    axes[1, 1].set_title('ADMM Low-rank L', fontsize=16)
+    im4 = axes[1, 1].imshow(results['ADM']['L'], cmap='viridis')
+    axes[1, 1].set_title('ADM Low-rank L', fontsize=16)
     axes[1, 1].axis('off')
     plt.colorbar(im4, ax=axes[1, 1])
     
-    im5 = axes[1, 2].imshow(results['ADMM']['S'], cmap='viridis')
-    axes[1, 2].set_title('ADMM Sparse S', fontsize=16)
+    im5 = axes[1, 2].imshow(results['ADM']['S'], cmap='viridis')
+    axes[1, 2].set_title('ADM Sparse S', fontsize=16)
     axes[1, 2].axis('off')
     plt.colorbar(im5, ax=axes[1, 2])
     
     # ADMM errors
-    im6 = axes[1, 3].imshow(results['ADMM']['L'] - L_true, cmap='RdBu')
-    axes[1, 3].set_title('ADMM L Error', fontsize=16)
+    im6 = axes[1, 3].imshow(results['ADM']['L'] - L_true, cmap='RdBu')
+    axes[1, 3].set_title('ADM L Error', fontsize=16)
     axes[1, 3].axis('off')
     plt.colorbar(im6, ax=axes[1, 3])
     
-    im7 = axes[1, 4].imshow(results['ADMM']['S'] - S_true, cmap='RdBu')
-    axes[1, 4].set_title('ADMM S Error', fontsize=16)
+    im7 = axes[1, 4].imshow(results['ADM']['S'] - S_true, cmap='RdBu')
+    axes[1, 4].set_title('ADM S Error', fontsize=16)
     axes[1, 4].axis('off')
     plt.colorbar(im7, ax=axes[1, 4])
     
     # IAML results
-    im8 = axes[2, 1].imshow(results['IAML']['L'], cmap='viridis')
-    axes[2, 1].set_title('IAML Low-rank L', fontsize=16)
+    im8 = axes[2, 1].imshow(results['IALM']['L'], cmap='viridis')
+    axes[2, 1].set_title('IALM Low-rank L', fontsize=16)
     axes[2, 1].axis('off')
     plt.colorbar(im8, ax=axes[2, 1])
     
-    im9 = axes[2, 2].imshow(results['IAML']['S'], cmap='viridis')
-    axes[2, 2].set_title('IAML Sparse S', fontsize=16)
+    im9 = axes[2, 2].imshow(results['IALM']['S'], cmap='viridis')
+    axes[2, 2].set_title('IALM Sparse S', fontsize=16)
     axes[2, 2].axis('off')
     plt.colorbar(im9, ax=axes[2, 2])
     
     # IAML errors
-    im10 = axes[2, 3].imshow(results['IAML']['L'] - L_true, cmap='RdBu')
-    axes[2, 3].set_title('IAML L Error', fontsize=16)
+    im10 = axes[2, 3].imshow(results['IALM']['L'] - L_true, cmap='RdBu')
+    axes[2, 3].set_title('IALM L Error', fontsize=16)
     axes[2, 3].axis('off')
     plt.colorbar(im10, ax=axes[2, 3])
     
-    im11 = axes[2, 4].imshow(results['IAML']['S'] - S_true, cmap='RdBu')
-    axes[2, 4].set_title('IAML S Error', fontsize=16)
+    im11 = axes[2, 4].imshow(results['IALM']['S'] - S_true, cmap='RdBu')
+    axes[2, 4].set_title('IALM S Error', fontsize=16)
     axes[2, 4].axis('off')
     plt.colorbar(im11, ax=axes[2, 4])
     
@@ -244,7 +244,7 @@ def print_comparison_table(results):
     print("ALGORITHM COMPARISON RESULTS")
     print("="*80)
     
-    print(f"{'Metric':<25} {'ADMM':<15} {'IAML':<15} {'Winner':<10}")
+    print(f"{'Metric':<25} {'ADM':<15} {'IALM':<15} {'Winner':<10}")
     print("-"*70)
     
     # Performance metrics
@@ -256,9 +256,9 @@ def print_comparison_table(results):
         iaml_val = results['IAML']['metrics'][metric]
         
         if metric in ['L_rel_error', 'S_rel_error']:
-            winner = 'ADMM' if admm_val < iaml_val else 'IAML'
+            winner = 'ADM' if admm_val < iaml_val else 'IALM'
         else:
-            winner = 'ADMM' if admm_val > iaml_val else 'IAML'
+            winner = 'ADM' if admm_val > iaml_val else 'IALM'
             
         print(f"{name:<25} {admm_val:<15.4f} {iaml_val:<15.4f} {winner:<10}")
     
